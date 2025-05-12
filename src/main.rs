@@ -4,8 +4,12 @@ use std::path::{Path, PathBuf};
 use native_dialog::{FileDialog, MessageDialog, MessageType};
 use eframe::egui;
 
+
 fn main() -> Result<(), eframe::Error> {
-    let options = eframe::NativeOptions::default();
+    let options = eframe::NativeOptions {
+        //initial_window_size: Some((400.0, 400.0)),
+        ..Default::default()
+    };
     eframe::run_native(
         "Laserhelfer",
         options,
@@ -16,6 +20,8 @@ fn main() -> Result<(), eframe::Error> {
 struct MyApp {
     input_dir: String,
     output_dir: String,
+    single_file: Option<PathBuf>,
+    processed_files: Vec<String>,
 }
 
 impl Default for MyApp {
@@ -23,6 +29,8 @@ impl Default for MyApp {
         Self {
             input_dir: "input".to_string(),
             output_dir: "output".to_string(),
+            single_file: None,
+            processed_files: Vec::new(),
         }
     }
 }
@@ -34,7 +42,7 @@ impl eframe::App for MyApp {
             ui.separator();
 
             if ui.button("Use Default Directories").clicked() {
-                self.process_files();
+                self.process_directory();
             }
 
             if ui.button("Select Input and Output Directories").clicked() {
@@ -44,17 +52,38 @@ impl eframe::App for MyApp {
                 if let Some(output) = FileDialog::new().show_open_single_dir().ok().flatten() {
                     self.output_dir = output.to_string_lossy().to_string();
                 }
-                self.process_files();
+                self.process_directory();
+            }
+
+            if ui.button("Select Single File").clicked() {
+                if let Some(file) = FileDialog::new().show_open_single_file().ok().flatten() {
+                    self.single_file = Some(file);
+                    self.process_single_file();
+                }
             }
 
             ui.label(format!("Input Directory: {}", self.input_dir));
             ui.label(format!("Output Directory: {}", self.output_dir));
+            if let Some(file) = &self.single_file {
+                ui.label(format!("Single File: {}", file.display()));
+            }
+
+            ui.separator();
+            ui.heading("Processed Files:");
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                for file in &self.processed_files {
+                    ui.label(file);
+                }
+            });
+            if ui.button("Clear Processed Files").clicked() {
+                self.processed_files.clear();
+            }
         });
     }
 }
 
 impl MyApp {
-    fn process_files(&self) {
+    fn process_directory(&mut self) {
         if let Err(e) = fs::create_dir_all(&self.output_dir) {
             MessageDialog::new()
                 .set_type(MessageType::Error)
@@ -69,11 +98,7 @@ impl MyApp {
             let entry = entry.unwrap();
             let path = entry.path();
             if path.is_file() {
-                let corrected_content = process_file(&path).unwrap();
-                let file_name = path.file_name().unwrap().to_string_lossy();
-                let corrected_file_name = format!("c_{}", file_name);
-                let output_path = PathBuf::from(&self.output_dir).join(corrected_file_name);
-                fs::write(output_path, corrected_content).unwrap();
+                self.process_file(&path);
             }
         }
 
@@ -83,6 +108,29 @@ impl MyApp {
             .set_text("All files processed successfully.")
             .show_alert()
             .unwrap();
+    }
+
+    fn process_single_file(&mut self) {
+        if self.single_file.is_some() {
+            let file = self.single_file.take().unwrap(); // Take the file out, avoiding borrow conflicts
+            self.process_file(&file);
+            MessageDialog::new()
+                .set_type(MessageType::Info)
+                .set_title("Success")
+                .set_text("Single file processed successfully.")
+                .show_alert()
+                .unwrap();
+        }
+    }
+
+
+    fn process_file(&mut self, path: &Path) {
+        let corrected_content = process_file(path).unwrap();
+        let file_name = path.file_name().unwrap().to_string_lossy().to_string();
+        let corrected_file_name = format!("c_{}", file_name);
+        let output_path = PathBuf::from(&self.output_dir).join(&corrected_file_name);
+        fs::write(output_path, corrected_content).unwrap();
+        self.processed_files.push(corrected_file_name);
     }
 }
 

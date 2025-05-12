@@ -1,0 +1,21 @@
+testdoc_2
+a
+a
+a
+B2
+56345
+G1 bla
+G2 bla
+G0 1234234
+G1 bla bla
+asdf
+G0 G0
+G0 1234213 g0
+asdf
+asdf
+asdf
+G0 bleibt bei g0
+neue Zeile
+a
+a
+letzte Zeile
