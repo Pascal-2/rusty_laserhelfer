@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+eframe = "0.26"  # Egui-based framework for native applications
+native-dialog = "0.6"  # Cross-platform native dialogs

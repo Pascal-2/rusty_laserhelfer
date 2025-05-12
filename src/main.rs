@@ -1,34 +1,89 @@
 use std::fs::{self, File};
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
-use std::env;
+use native_dialog::{FileDialog, MessageDialog, MessageType};
+use eframe::egui;
 
-fn main() -> io::Result<()> {
-    // Use default directories if no arguments are provided
-    let args: Vec<String> = env::args().collect();
-    let input_dir = args.get(1).map(String::as_str).unwrap_or("input");
-    let output_dir = args.get(2).map(String::as_str).unwrap_or("output");
+fn main() -> Result<(), eframe::Error> {
+    let options = eframe::NativeOptions::default();
+    eframe::run_native(
+        "Laserhelfer",
+        options,
+        Box::new(|_cc| Box::new(MyApp::default())),
+    )
+}
 
-    // Create output directory if it doesn't exist
-    fs::create_dir_all(output_dir)?;
-    fs::create_dir_all(input_dir)?; //creating this as well if not there already
+struct MyApp {
+    input_dir: String,
+    output_dir: String,
+}
 
-    // Iterate over each file in the input directory
-    for entry in fs::read_dir(input_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_file() {
-            println!("Processing file: {}", path.display());
-            let corrected_content = process_file(&path)?;
-            let file_name = path.file_name().unwrap().to_string_lossy();
-            let corrected_file_name = format!("c_{}", file_name);
-            let output_path = PathBuf::from(output_dir).join(corrected_file_name);
-            fs::write(output_path, corrected_content)?;
+impl Default for MyApp {
+    fn default() -> Self {
+        Self {
+            input_dir: "input".to_string(),
+            output_dir: "output".to_string(),
         }
     }
+}
 
-    println!("All files processed successfully.");
-    Ok(())
+impl eframe::App for MyApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Laserhelfer");
+            ui.separator();
+
+            if ui.button("Use Default Directories").clicked() {
+                self.process_files();
+            }
+
+            if ui.button("Select Input and Output Directories").clicked() {
+                if let Some(input) = FileDialog::new().show_open_single_dir().ok().flatten() {
+                    self.input_dir = input.to_string_lossy().to_string();
+                }
+                if let Some(output) = FileDialog::new().show_open_single_dir().ok().flatten() {
+                    self.output_dir = output.to_string_lossy().to_string();
+                }
+                self.process_files();
+            }
+
+            ui.label(format!("Input Directory: {}", self.input_dir));
+            ui.label(format!("Output Directory: {}", self.output_dir));
+        });
+    }
+}
+
+impl MyApp {
+    fn process_files(&self) {
+        if let Err(e) = fs::create_dir_all(&self.output_dir) {
+            MessageDialog::new()
+                .set_type(MessageType::Error)
+                .set_title("Error")
+                .set_text(&format!("Failed to create output directory: {}", e))
+                .show_alert()
+                .unwrap();
+            return;
+        }
+
+        for entry in fs::read_dir(&self.input_dir).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.is_file() {
+                let corrected_content = process_file(&path).unwrap();
+                let file_name = path.file_name().unwrap().to_string_lossy();
+                let corrected_file_name = format!("c_{}", file_name);
+                let output_path = PathBuf::from(&self.output_dir).join(corrected_file_name);
+                fs::write(output_path, corrected_content).unwrap();
+            }
+        }
+
+        MessageDialog::new()
+            .set_type(MessageType::Info)
+            .set_title("Success")
+            .set_text("All files processed successfully.")
+            .show_alert()
+            .unwrap();
+    }
 }
 
 fn process_file(path: &Path) -> io::Result<String> {
@@ -47,7 +102,6 @@ fn process_file(path: &Path) -> io::Result<String> {
             corrected_content.push_str(&format!("{}\n", line));
         }
     }
-    println!("{}", corrected_content);
 
     Ok(corrected_content)
 }
