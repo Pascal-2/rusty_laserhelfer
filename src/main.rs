@@ -1,6 +1,6 @@
 use std::fs::{self, File};
 use std::io::{self, BufRead};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::env;
 
 fn main() -> io::Result<()> {
@@ -20,7 +20,9 @@ fn main() -> io::Result<()> {
         if path.is_file() {
             println!("Processing file: {}", path.display());
             let corrected_content = process_file(&path)?;
-            let output_path = Path::new(output_dir).join(path.file_name().unwrap());
+            let file_name = path.file_name().unwrap().to_string_lossy();
+            let corrected_file_name = format!("c_{}", file_name);
+            let output_path = PathBuf::from(output_dir).join(corrected_file_name);
             fs::write(output_path, corrected_content)?;
         }
     }
